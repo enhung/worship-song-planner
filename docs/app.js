@@ -12,6 +12,8 @@ const importJsonBtn = document.getElementById("import-json");
 const importFileInput = document.getElementById("import-file");
 const downloadJsonBtn = document.getElementById("download-json");
 const aiReviewBtn = document.getElementById("ai-review-btn");
+const aiSettingsSection = document.getElementById("ai-settings-section");
+const aiDisabledNotice = document.getElementById("ai-disabled-notice");
 const openAiApiKeyInput = document.getElementById("openai_api_key");
 const openAiModelInput = document.getElementById("openai_model");
 const aiReasoningEffortInput = document.getElementById("ai_reasoning_effort");
@@ -25,6 +27,8 @@ let templateData = {};
 let latestMarkdown = "";
 let latestBrief = null;
 let latestSelection = null;
+let runtimeConfig = { ai_review: { enabled_origin_patterns: [] } };
+let aiReviewEnabled = false;
 
 function setStatus(message, kind = "") {
   statusEl.textContent = message || "";
@@ -35,6 +39,52 @@ function setDataStatus(message, kind = "") {
   dataStatusEl.textContent = message;
   dataStatusEl.style.background = kind === "good" ? "rgba(47, 107, 67, 0.1)" : "rgba(168, 90, 40, 0.1)";
   dataStatusEl.style.color = kind === "good" ? "var(--good)" : "var(--accent-strong)";
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isPrivateIpv4(hostname) {
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) return false;
+  const parts = hostname.split(".").map(Number);
+  if (parts[0] === 10) return true;
+  if (parts[0] === 127) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  return false;
+}
+
+function hostnameMatchesPattern(hostname, pattern) {
+  if (!pattern) return false;
+  if (pattern.startsWith(".")) return hostname.endsWith(pattern);
+  if (pattern.includes("*")) {
+    const regex = new RegExp(`^${pattern.split("*").map(escapeRegExp).join(".*")}$`);
+    return regex.test(hostname);
+  }
+  return hostname === pattern;
+}
+
+function evaluateAiAvailability() {
+  const hostname = window.location.hostname;
+  const patterns = runtimeConfig?.ai_review?.enabled_origin_patterns || [];
+  return (
+    isPrivateIpv4(hostname) ||
+    patterns.some((pattern) => hostnameMatchesPattern(hostname, pattern))
+  );
+}
+
+function applyAiVisibility() {
+  aiReviewEnabled = evaluateAiAvailability();
+  aiSettingsSection.style.display = aiReviewEnabled ? "" : "none";
+  aiReviewBtn.style.display = aiReviewEnabled ? "" : "none";
+  aiDisabledNotice.style.display = aiReviewEnabled ? "none" : "block";
+  if (!aiReviewEnabled) {
+    aiReviewBtn.disabled = true;
+    clearAiOutput();
+  } else {
+    aiReviewBtn.disabled = false;
+  }
 }
 
 function downloadText(filename, content) {
@@ -475,14 +525,19 @@ rememberApiKeyInput.addEventListener("change", () => {
 });
 
 async function loadStaticData() {
-  const [songsResp, templateResp] = await Promise.all([
+  const [songsResp, templateResp, configResp] = await Promise.all([
     fetch("./songs_db_agent_v1.json"),
     fetch("./weekly_runtime_input_template.json"),
+    fetch("./runtime-config.json"),
   ]);
   if (!songsResp.ok) throw new Error("無法載入歌庫 JSON");
   if (!templateResp.ok) throw new Error("無法載入範例模板");
+  if (configResp.ok) {
+    runtimeConfig = await configResp.json();
+  }
   songsDb = await songsResp.json();
   templateData = await templateResp.json();
+  applyAiVisibility();
   restoreApiKeyPreference();
   const restored = loadSavedForm();
   if (!restored) {
@@ -642,6 +697,9 @@ function buildAiPrompt(brief, selection, ruleBasedMarkdown) {
 }
 
 async function requestOpenAiReview() {
+  if (!aiReviewEnabled) {
+    throw new Error("AI 審核功能目前只在內網環境開放。");
+  }
   const apiKey = openAiApiKeyInput.value.trim();
   if (!apiKey) {
     throw new Error("請先填入 OpenAI API key。");
@@ -700,6 +758,7 @@ aiReviewBtn.addEventListener("click", async () => {
 document.getElementById("service_date").value = localTodayISO();
 
 loadStaticData().catch((error) => {
+  applyAiVisibility();
   setDataStatus("歌庫載入失敗");
   setStatus(`初始化失敗：${error.message}`, "err");
 });

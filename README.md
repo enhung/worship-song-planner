@@ -19,6 +19,7 @@ A static web app for church worship teams to prepare weekly service briefs, gene
 
 - `docs/index.html` - static app entry
 - `docs/app.js` - browser-side selection and summary logic
+- `docs/runtime-config.json` - environment gating for optional AI review
 - `docs/songs_db_agent_v1.json` - bundled song database for the static site
 - `docs/weekly_runtime_input_template.json` - sample input template
 - `.github/workflows/deploy-pages.yml` - GitHub Pages deployment workflow
@@ -57,6 +58,7 @@ How it works:
 1. The app first generates a rule-based summary from the bundled song database.
 2. If you provide your own OpenAI API key in the browser, the app can send the brief, selected songs, and summary to the OpenAI Responses API.
 3. The model returns an additional review block with risks, adjustments, and teammate-facing notes.
+4. In the current setup, AI review is only shown on allowed internal origins defined in `docs/runtime-config.json`.
 
 Important:
 

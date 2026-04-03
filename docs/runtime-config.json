@@ -1,0 +1,10 @@
+{
+  "ai_review": {
+    "enabled_origin_patterns": [
+      "localhost",
+      "127.0.0.1",
+      "::1",
+      ".ts.net"
+    ]
+  }
+}
