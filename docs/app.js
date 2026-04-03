@@ -3,15 +3,28 @@ const generateBtn = document.getElementById("generate-btn");
 const statusEl = document.getElementById("status");
 const outputEmpty = document.getElementById("output-empty");
 const outputRendered = document.getElementById("output-rendered");
+const aiOutputRendered = document.getElementById("ai-output-rendered");
 const copyMdBtn = document.getElementById("copy-md-btn");
 const downloadMdBtn = document.getElementById("download-md-btn");
 const dataStatusEl = document.getElementById("data-status");
 const loadTemplateBtn = document.getElementById("load-template");
+const importJsonBtn = document.getElementById("import-json");
+const importFileInput = document.getElementById("import-file");
 const downloadJsonBtn = document.getElementById("download-json");
+const aiReviewBtn = document.getElementById("ai-review-btn");
+const openAiApiKeyInput = document.getElementById("openai_api_key");
+const openAiModelInput = document.getElementById("openai_model");
+const aiReasoningEffortInput = document.getElementById("ai_reasoning_effort");
+const rememberApiKeyInput = document.getElementById("remember_api_key");
+
+const STORAGE_KEY = "worship-song-planner-form";
+const OPENAI_KEY_STORAGE = "worship-song-planner-openai-key";
 
 let songsDb = [];
 let templateData = {};
 let latestMarkdown = "";
+let latestBrief = null;
+let latestSelection = null;
 
 function setStatus(message, kind = "") {
   statusEl.textContent = message || "";
@@ -368,6 +381,26 @@ function fillForm(data) {
   if (!dateInput.value) dateInput.value = localTodayISO();
 }
 
+function persistForm() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(formToPayload()));
+  } catch {
+    // Ignore storage failures to keep the form usable.
+  }
+}
+
+function loadSavedForm() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    fillForm(data);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function formToPayload() {
   const payload = {};
   const fd = new FormData(form);
@@ -395,6 +428,52 @@ function showOutput(markdown) {
   downloadMdBtn.disabled = false;
 }
 
+function showAiOutput(markdown) {
+  aiOutputRendered.innerHTML = markdownToHtml(markdown);
+  aiOutputRendered.style.display = "block";
+}
+
+function clearAiOutput() {
+  aiOutputRendered.innerHTML = "";
+  aiOutputRendered.style.display = "none";
+}
+
+function persistApiKeyPreference() {
+  try {
+    if (rememberApiKeyInput.checked && openAiApiKeyInput.value.trim()) {
+      localStorage.setItem(OPENAI_KEY_STORAGE, openAiApiKeyInput.value.trim());
+    } else {
+      localStorage.removeItem(OPENAI_KEY_STORAGE);
+    }
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function restoreApiKeyPreference() {
+  try {
+    const saved = localStorage.getItem(OPENAI_KEY_STORAGE);
+    if (saved) {
+      openAiApiKeyInput.value = saved;
+      rememberApiKeyInput.checked = true;
+    }
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+form.addEventListener("input", () => {
+  persistForm();
+});
+
+openAiApiKeyInput.addEventListener("input", () => {
+  if (rememberApiKeyInput.checked) persistApiKeyPreference();
+});
+
+rememberApiKeyInput.addEventListener("change", () => {
+  persistApiKeyPreference();
+});
+
 async function loadStaticData() {
   const [songsResp, templateResp] = await Promise.all([
     fetch("./songs_db_agent_v1.json"),
@@ -404,7 +483,12 @@ async function loadStaticData() {
   if (!templateResp.ok) throw new Error("無法載入範例模板");
   songsDb = await songsResp.json();
   templateData = await templateResp.json();
-  fillForm({ ...templateData, service_date: localTodayISO() });
+  restoreApiKeyPreference();
+  const restored = loadSavedForm();
+  if (!restored) {
+    fillForm({ ...templateData, service_date: localTodayISO() });
+    persistForm();
+  }
   setDataStatus(`歌庫已載入，共 ${songsDb.length} 首`, "good");
 }
 
@@ -421,8 +505,11 @@ form.addEventListener("submit", async (event) => {
   try {
     const brief = formToPayload();
     const { chosen, response, tags, flags } = buildSet(brief, songsDb);
+    latestBrief = brief;
+    latestSelection = { chosen, response, tags, flags };
     const markdown = renderMarkdown(brief, chosen, response, tags, flags);
     showOutput(markdown);
+    clearAiOutput();
     setStatus("摘要已生成。", "good");
   } catch (error) {
     setStatus(`生成失敗：${error.message}`, "err");
@@ -435,7 +522,28 @@ form.addEventListener("submit", async (event) => {
 
 loadTemplateBtn.addEventListener("click", () => {
   fillForm({ ...templateData, service_date: localTodayISO() });
+  persistForm();
   setStatus("已載入範例資料。", "good");
+});
+
+importJsonBtn.addEventListener("click", () => {
+  importFileInput.click();
+});
+
+importFileInput.addEventListener("change", async (event) => {
+  const [file] = event.target.files || [];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    fillForm(data);
+    persistForm();
+    setStatus("已匯入 JSON。", "good");
+  } catch {
+    setStatus("匯入失敗，請確認檔案是有效的 JSON。", "err");
+  } finally {
+    importFileInput.value = "";
+  }
 });
 
 downloadJsonBtn.addEventListener("click", () => {
@@ -462,6 +570,131 @@ downloadMdBtn.addEventListener("click", () => {
   if (!latestMarkdown) return;
   downloadText("review_summary.md", latestMarkdown);
   setStatus("已下載摘要。", "good");
+});
+
+function buildAlternativeSongs(brief, songs, usedNames, tags, flags, limit = 8) {
+  const recent = normalizeRecentSongs(brief.recent_songs || []);
+  return songs
+    .filter((song) => song.song_name_zh && !usedNames.has(song.song_name_zh))
+    .map((song) => ({
+      name: song.song_name_zh,
+      theme: song.theme_tags_zh || "",
+      familiarity: song.familiarity_code || "",
+      seekerFriendly: song.seeker_friendly_code || "",
+      position: normalizePosition(song.recommended_position_code),
+      score: songScore(song, "response_song", tags, recent, flags),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+function buildAiPrompt(brief, selection, ruleBasedMarkdown) {
+  const usedNames = new Set(selection.chosen.map(([, song]) => song.song_name_zh));
+  if (selection.response?.song_name_zh) usedNames.add(selection.response.song_name_zh);
+  const alternatives = buildAlternativeSongs(brief, songsDb, usedNames, selection.tags, selection.flags);
+
+  const selectedSongs = selection.chosen.map(([position, song]) => ({
+    position,
+    song_name_zh: song.song_name_zh,
+    theme_tags_zh: song.theme_tags_zh || "",
+    familiarity_code: song.familiarity_code || "",
+    seeker_friendly_code: song.seeker_friendly_code || "",
+    recommended_usage_zh: song.recommended_usage_zh || "",
+  }));
+
+  const payload = {
+    brief,
+    selected_songs: selectedSongs,
+    response_song: selection.response ? {
+      song_name_zh: selection.response.song_name_zh,
+      theme_tags_zh: selection.response.theme_tags_zh || "",
+      familiarity_code: selection.response.familiarity_code || "",
+      seeker_friendly_code: selection.response.seeker_friendly_code || "",
+    } : null,
+    alternate_candidates: alternatives,
+    rule_based_summary_markdown: ruleBasedMarkdown,
+  };
+
+  return [
+    "你是一位協助華人教會敬拜團隊的審核助手。",
+    "請根據以下資料，對這份歌單做第二輪 AI 審核。",
+    "你的任務是：",
+    "1. 判斷歌單是否適合這次聚會。",
+    "2. 指出 2 到 4 個真正重要的風險或注意事項。",
+    "3. 如果歌單整體可行，就說明為什麼可行。",
+    "4. 如果你認為某一首應更換，最多提出 2 個替換建議，優先從 alternate_candidates 裡挑。",
+    "5. 特別留意福音主日、外來講員、慕道友、德國來賓、英文歌詞需求。",
+    "6. 不要重複規則式摘要原文，要給更像同工審核意見的補充判斷。",
+    "請使用繁體中文，輸出 Markdown，格式如下：",
+    "# AI 審核補充",
+    "",
+    "- 整體判斷：",
+    "- 主要風險：",
+    "  - ...",
+    "- 建議調整：",
+    "  - 若無需調整，直接寫「目前可維持」。",
+    "- 給同工的提醒：",
+    "  - ...",
+    "",
+    "以下是資料 JSON：",
+    JSON.stringify(payload, null, 2),
+  ].join("\n");
+}
+
+async function requestOpenAiReview() {
+  const apiKey = openAiApiKeyInput.value.trim();
+  if (!apiKey) {
+    throw new Error("請先填入 OpenAI API key。");
+  }
+  if (!latestBrief || !latestSelection || !latestMarkdown) {
+    throw new Error("請先生成一般摘要，再進行 AI 審核。");
+  }
+
+  const payload = {
+    model: openAiModelInput.value,
+    reasoning: { effort: aiReasoningEffortInput.value },
+    input: buildAiPrompt(latestBrief, latestSelection, latestMarkdown),
+  };
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    const message = data?.error?.message || "OpenAI API 呼叫失敗";
+    throw new Error(message);
+  }
+
+  const text = data.output_text || "";
+  if (!text.trim()) {
+    throw new Error("AI 沒有回傳可顯示的文字內容。");
+  }
+  return text;
+}
+
+aiReviewBtn.addEventListener("click", async () => {
+  aiReviewBtn.disabled = true;
+  aiReviewBtn.classList.add("loading");
+  aiReviewBtn.textContent = "AI 審核中...";
+  setStatus("正在呼叫 OpenAI 做第二輪審核…");
+  try {
+    persistApiKeyPreference();
+    const aiMarkdown = await requestOpenAiReview();
+    showAiOutput(aiMarkdown);
+    setStatus("AI 審核已完成。", "good");
+  } catch (error) {
+    setStatus(`AI 審核失敗：${error.message}`, "err");
+  } finally {
+    aiReviewBtn.disabled = false;
+    aiReviewBtn.classList.remove("loading");
+    aiReviewBtn.textContent = "AI 再審核";
+  }
 });
 
 document.getElementById("service_date").value = localTodayISO();

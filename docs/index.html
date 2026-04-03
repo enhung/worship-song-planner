@@ -468,11 +468,50 @@
               </div>
             </div>
 
+            <div class="section">
+              <div class="section-title">AI 審核設定</div>
+              <div class="fields">
+                <div class="field-full">
+                  <label for="openai_api_key">OpenAI API Key</label>
+                  <input id="openai_api_key" type="password" autocomplete="off" placeholder="貼上 sk-... 或 project key">
+                </div>
+                <div>
+                  <label for="openai_model">AI 模型</label>
+                  <select id="openai_model">
+                    <option value="gpt-5-mini">gpt-5-mini</option>
+                    <option value="gpt-5.2">gpt-5.2</option>
+                    <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+                    <option value="gpt-5.4">gpt-5.4</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="ai_reasoning_effort">推理強度</label>
+                  <select id="ai_reasoning_effort">
+                    <option value="low">low</option>
+                    <option value="medium" selected>medium</option>
+                    <option value="high">high</option>
+                  </select>
+                </div>
+                <div class="field-full">
+                  <div class="checks">
+                    <label class="check"><input id="remember_api_key" type="checkbox"><span>在這台瀏覽器記住 API key</span></label>
+                  </div>
+                </div>
+                <div class="field-full">
+                  <div class="notice">
+                    這個 GitHub Pages 版本沒有安全後端。若你在瀏覽器直接呼叫 OpenAI API，API key 只會儲存在你的瀏覽器中，不會寫進 repo；但這仍然比後端代理模式更不安全，較適合個人或內部使用。
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="action-bar">
               <button class="primary" id="generate-btn" type="submit">生成審核摘要</button>
+              <button class="ghost" id="ai-review-btn" type="button">AI 再審核</button>
               <div class="status" id="status"></div>
               <div class="action-right">
                 <button class="ghost" id="load-template" type="button">載入範例</button>
+                <button class="ghost" id="import-json" type="button">匯入 JSON</button>
                 <button class="ghost" id="download-json" type="button">下載 JSON</button>
               </div>
             </div>
@@ -504,6 +543,7 @@
             </div>
           </div>
           <div class="output md" id="output-rendered"></div>
+          <div class="output md" id="ai-output-rendered" style="display:none; margin-top: 14px;"></div>
           <div class="notice">
             GitHub Pages 上請確保 `index.html`、`app.js`、`songs_db_agent_v1.json`、`weekly_runtime_input_template.json` 都在同一個靜態目錄下。
           </div>
@@ -511,6 +551,7 @@
       </section>
     </div>
   </div>
+  <input id="import-file" type="file" accept="application/json,.json" hidden>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
