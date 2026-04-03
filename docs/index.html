@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>選歌審核助手</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f4ede2;
+      --bg-deep: #e7dccb;
+      --ink: #2a2118;
+      --muted: #6f5e4d;
+      --line: #dbc7ab;
+      --accent: #a85a28;
+      --accent-strong: #7d3811;
+      --accent-soft: rgba(168, 90, 40, 0.1);
+      --good: #2f6b43;
+      --good-soft: rgba(47, 107, 67, 0.1);
+      --err: #b23b2d;
+      --shadow: 0 16px 40px rgba(82, 57, 33, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(168, 90, 40, 0.16), transparent 24%),
+        radial-gradient(circle at top right, rgba(74, 114, 83, 0.12), transparent 28%),
+        linear-gradient(160deg, #fbf6ee 0%, var(--bg) 52%, var(--bg-deep) 100%);
+      min-height: 100vh;
+    }
+    .shell {
+      width: min(1220px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 60px;
+    }
+    .hero {
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 22px;
+      padding: 26px 28px;
+      border-radius: 26px;
+      border: 1px solid rgba(168, 90, 40, 0.14);
+      background: linear-gradient(135deg, rgba(255,255,255,0.76), rgba(251, 239, 223, 0.94));
+      box-shadow: var(--shadow);
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -40px -60px auto;
+      width: 220px;
+      height: 220px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(168, 90, 40, 0.14), transparent 68%);
+      pointer-events: none;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.82);
+      color: var(--accent-strong);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(30px, 5vw, 52px);
+      line-height: 0.98;
+      letter-spacing: -0.03em;
+    }
+    .hero p {
+      margin: 0;
+      max-width: 820px;
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 20px;
+      align-items: start;
+    }
+    .panel {
+      border-radius: 24px;
+      border: 1px solid rgba(168, 90, 40, 0.12);
+      background: rgba(255, 251, 244, 0.88);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .panel.sticky {
+      position: sticky;
+      top: 18px;
+      max-height: calc(100vh - 36px);
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-head {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.5);
+    }
+    .panel-head-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .panel-head h2 {
+      margin: 0 0 4px;
+      font-size: 18px;
+    }
+    .panel-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .panel-body {
+      padding: 20px 22px 24px;
+      overflow: auto;
+      flex: 1;
+    }
+    .section {
+      margin-bottom: 22px;
+      padding-bottom: 18px;
+      border-bottom: 1px dashed rgba(111, 94, 77, 0.22);
+    }
+    .section:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 14px;
+      color: var(--accent-strong);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+    .fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 14px;
+    }
+    .field-full { grid-column: 1 / -1; }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+    input, select, textarea {
+      width: 100%;
+      border: 1.5px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.88);
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      padding: 10px 12px;
+      transition: border-color 130ms ease, box-shadow 130ms ease, transform 130ms ease;
+      appearance: none;
+    }
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%236f5e4d' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 34px;
+    }
+    textarea {
+      min-height: 86px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(168, 90, 40, 0.12);
+      transform: translateY(-1px);
+    }
+    .checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding-top: 2px;
+    }
+    .check {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1.5px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.72);
+      cursor: pointer;
+      user-select: none;
+      transition: background 130ms ease, border-color 130ms ease, transform 130ms ease;
+    }
+    .check:hover { transform: translateY(-1px); }
+    .check input { display: none; }
+    .check:has(input:checked) {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      font-weight: 800;
+    }
+    .action-bar {
+      position: sticky;
+      bottom: 0;
+      margin: 0 -22px -24px;
+      padding: 14px 22px;
+      border-top: 1px solid var(--line);
+      background: rgba(255, 250, 242, 0.94);
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .action-right {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 18px;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
+      white-space: nowrap;
+    }
+    button:hover:not(:disabled) { transform: translateY(-1px); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .primary {
+      position: relative;
+      padding: 11px 22px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #fff8ef;
+      box-shadow: 0 14px 24px rgba(125, 56, 17, 0.22);
+    }
+    .primary.loading {
+      padding-left: 40px;
+    }
+    .primary.loading::before {
+      content: "";
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      width: 14px;
+      height: 14px;
+      margin-top: -7px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      animation: spin .7s linear infinite;
+    }
+    .ghost {
+      border: 1.5px solid var(--line);
+      background: rgba(255,255,255,0.88);
+      color: var(--ink);
+    }
+    .ghost.success {
+      border-color: var(--good);
+      color: var(--good);
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status {
+      min-height: 20px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .status.good { color: var(--good); }
+    .status.err { color: var(--err); }
+    .meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 13px;
+      border-radius: 999px;
+      background: rgba(168, 90, 40, 0.1);
+      color: var(--accent-strong);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+    .empty {
+      min-height: 300px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      border: 1.5px dashed rgba(111, 94, 77, 0.24);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.45);
+      padding: 24px;
+    }
+    .empty strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-size: 16px;
+    }
+    .output {
+      display: none;
+      border: 1.5px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.76);
+      padding: 20px 22px;
+      line-height: 1.65;
+    }
+    .md h1, .md h2, .md h3 {
+      margin: 0 0 12px;
+      color: var(--accent-strong);
+      line-height: 1.2;
+    }
+    .md h1 {
+      font-size: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--line);
+    }
+    .md p {
+      margin: 0 0 10px;
+      font-size: 14px;
+    }
+    .md ul {
+      margin: 0 0 12px;
+      padding-left: 20px;
+    }
+    .md li {
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+    .md strong { color: var(--accent-strong); }
+    .notice {
+      margin-top: 12px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+    code {
+      padding: 1px 5px;
+      border-radius: 6px;
+      background: rgba(111, 94, 77, 0.08);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+    @media (max-width: 940px) {
+      .layout { grid-template-columns: 1fr; }
+      .panel.sticky { position: static; max-height: none; }
+      .fields { grid-template-columns: 1fr; }
+      .action-right { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="eyebrow">Static App • GitHub Pages Ready</div>
+      <h1>選歌審核助手</h1>
+      <p>這個版本不需要 Python 後端，所有選歌與摘要生成都直接在瀏覽器執行。適合部署到 GitHub Pages 或任何靜態網站空間。</p>
+    </section>
+
+    <div class="layout">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>聚會資料</h2>
+          <p>先填重要欄位即可。歌庫與摘要邏輯會在瀏覽器端執行，不需要本機伺服器。</p>
+        </div>
+        <div class="panel-body">
+          <form id="brief-form">
+            <div class="section">
+              <div class="section-title">聚會基本資料</div>
+              <div class="fields">
+                <div><label for="service_name">聚會名稱</label><input id="service_name" name="service_name" placeholder="例：主日崇拜"></div>
+                <div><label for="service_date">日期</label><input id="service_date" name="service_date" type="date"></div>
+                <div><label for="service_type">聚會類型</label>
+                  <select id="service_type" name="service_type">
+                    <option>一般主日</option>
+                    <option>福音主日</option>
+                    <option>聖餐主日</option>
+                    <option>聯合聚會</option>
+                    <option>特別聚會</option>
+                  </select>
+                </div>
+                <div><label for="season_or_special_day">節期或特別日</label><input id="season_or_special_day" name="season_or_special_day" placeholder="例：復活節、一般主日"></div>
+                <div><label for="speaker">講員</label><input id="speaker" name="speaker"></div>
+                <div><label for="speaker_type">講員類型</label>
+                  <select id="speaker_type" name="speaker_type">
+                    <option value="">未指定</option>
+                    <option value="internal_speaker">本堂講員</option>
+                    <option value="guest_speaker">外來講員</option>
+                  </select>
+                </div>
+                <div class="field-full"><label for="sermon_title">講題</label><input id="sermon_title" name="sermon_title"></div>
+                <div class="field-full"><label for="sermon_scripture">講道經文</label><input id="sermon_scripture" name="sermon_scripture"></div>
+                <div class="field-full"><label for="sermon_summary">講道摘要</label><textarea id="sermon_summary" name="sermon_summary"></textarea></div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">會眾與語言</div>
+              <div class="fields">
+                <div class="field-full"><label for="congregation_profile">會眾組成</label><textarea id="congregation_profile" name="congregation_profile" placeholder="例：成人、長輩、青少年、慕道友、德國朋友"></textarea></div>
+                <div class="field-full">
+                  <div class="checks">
+                    <label class="check"><input id="seekers_expected" name="seekers_expected" type="checkbox"><span>有慕道友</span></label>
+                    <label class="check"><input id="german_attendees_expected" name="german_attendees_expected" type="checkbox"><span>有德國來賓</span></label>
+                    <label class="check"><input id="english_lyrics_needed" name="english_lyrics_needed" type="checkbox"><span>需要英文歌詞</span></label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">選歌限制</div>
+              <div class="fields">
+                <div><label for="total_worship_time_minutes">敬拜總時長（分鐘）</label><input id="total_worship_time_minutes" name="total_worship_time_minutes" type="number" min="0" step="1"></div>
+                <div><label for="allow_new_song_count">最多新歌數</label><input id="allow_new_song_count" name="allow_new_song_count" type="number" min="0" step="1"></div>
+                <div><label for="familiarity_requirement">熟悉度要求</label>
+                  <select id="familiarity_requirement" name="familiarity_requirement">
+                    <option>高</option>
+                    <option>中高</option>
+                    <option>中</option>
+                  </select>
+                </div>
+                <div><label for="desired_atmosphere">希望氣氛</label><input id="desired_atmosphere" name="desired_atmosphere" placeholder="例：穩定、敬虔、喜樂"></div>
+                <div class="field-full"><label for="response_song_given_by_pastor">已指定回應詩歌</label><input id="response_song_given_by_pastor" name="response_song_given_by_pastor" placeholder="若牧者已指定，填入歌名"></div>
+                <div class="field-full"><label for="recent_songs">近期已唱過的歌</label><textarea id="recent_songs" name="recent_songs" placeholder="每行一首，或用逗號分隔"></textarea></div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">本週服事方向</div>
+              <div class="fields">
+                <div class="field-full"><label for="devotion_theme">靈修亮光</label><textarea id="devotion_theme" name="devotion_theme"></textarea></div>
+                <div class="field-full"><label for="prayer_insight">禱告領受</label><textarea id="prayer_insight" name="prayer_insight"></textarea></div>
+                <div class="field-full"><label for="church_condition">教會近況</label><textarea id="church_condition" name="church_condition"></textarea></div>
+              </div>
+            </div>
+
+            <div class="action-bar">
+              <button class="primary" id="generate-btn" type="submit">生成審核摘要</button>
+              <div class="status" id="status"></div>
+              <div class="action-right">
+                <button class="ghost" id="load-template" type="button">載入範例</button>
+                <button class="ghost" id="download-json" type="button">下載 JSON</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel sticky">
+        <div class="panel-head">
+          <div class="panel-head-row">
+            <div>
+              <h2>師母審核摘要</h2>
+              <p>純前端版本，生成結果可直接複製或下載。</p>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="ghost" id="copy-md-btn" type="button" disabled>複製文字</button>
+              <button class="ghost" id="download-md-btn" type="button" disabled>下載 .md</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="meta">
+            <span class="pill" id="data-status">正在載入歌庫…</span>
+          </div>
+          <div class="empty" id="output-empty">
+            <div>
+              <strong>先填左側表單</strong>
+              生成後會在這裡顯示格式化摘要。
+            </div>
+          </div>
+          <div class="output md" id="output-rendered"></div>
+          <div class="notice">
+            GitHub Pages 上請確保 `index.html`、`app.js`、`songs_db_agent_v1.json`、`weekly_runtime_input_template.json` 都在同一個靜態目錄下。
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

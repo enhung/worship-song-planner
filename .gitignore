@@ -1,0 +1,35 @@
+.DS_Store
+.claude/
+__pycache__/
+*.pyc
+
+# Local editor and OS clutter
+.vscode/
+.idea/
+
+# Generated local docs or office temp files
+~$*
+*.pptx
+*.docx
+*.xlsx
+
+# Keep slide/task workspaces and large local artifacts out of the initial web repo by default
+slide_tasks/
+
+# Local planning/source artifacts kept outside the first public web deployment
+examples/
+skills/
+review-song
+build_table_docx.py
+openclaw_worship_skill_v3_songsdb.yaml
+songs_db_agent_v1.csv
+songs_db_agent_v1.json
+songs_db_agent_v1.jsonl
+songs_db_agent_v1.xlsx
+songs_db_bundle_README.md
+weekly_piano_arrangement_*
+weekly_runtime_input_template.json
+
+# Keep the static site copies deployable
+!docs/songs_db_agent_v1.json
+!docs/weekly_runtime_input_template.json
